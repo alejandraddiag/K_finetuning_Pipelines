@@ -1,0 +1,1615 @@
+---
+title: "Pipeline_Validation_ADA"
+author: "Alejandra Diaz"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 4
+    toc_float: 
+      collapsed: true
+    number_sections: true
+    code_folding: hide
+    theme: simplex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align="center", cache=TRUE, warning=FALSE)
+
+source("Functions.R")
+```
+
+# Importing the Data
+
+## Importing the Toy Dataset
+
+```{r}
+toy_df<-read.csv("ASV_table_merged_S1_S2_SILVA.csv")
+rownames(toy_df)<-toy_df$X
+toy_df<-toy_df[-1]
+toy_df<-toy_df%>%
+  mutate_if(is.integer, as.numeric)%>%
+  select(where(is.numeric))
+```
+
+## Importing the MBQC dataset
+
+```{r}
+data_frame_mbqc<-read.csv("OTU_table_family.csv")
+
+true_taxa<-c("Bacillaceae","Bifidobacteriaceae","Brevibacteriaceae",
+             "Clostridia","Campylobacteriaceae","Coriobacteriaceae",
+             "Enterobacteriaceae","Fusobacteriaceae","Leptotrichiaceae",
+             "Leuconostocaceae", "Neisseriaceae","Porphyromonadaceae",
+             "Prevotellaceae","Ravobacteriaceae","Streptococcaceae",
+             "Tenericutes", "Veillonellaceae","Anaeroplasmataceae",
+             "Desulfovibrionaceae","Lachnospiraceae","Lactobacillaceae",
+             "Oxalobacteriaceae","Paenibacillaceae","Porphyromonadaceae",
+             "Prevotellaceae","Propionibacteriaceae","Rikenellaceae",
+             "Ruminococcaceae", "Synergistetes")
+
+
+
+mbqc<-t(data_frame_mbqc)
+names<-mbqc[2,]
+true_false_df <- as.vector(as.vector(names %in% true_taxa))
+
+df_names<-data.frame(names,true_false_df)
+mbqc<-mbqc[-c(1,2),]
+mbqc<-data.frame(mbqc)%>%
+  mutate_if(is.character, as.numeric)
+
+mbqc_arranged<-mbqc
+
+```
+
+```{r}
+#Re-mbqcanging the dataframe by ColSum in descending order
+mbqc<-mbqc[,names(sort(colSums(mbqc), decreasing=TRUE))]
+
+```
+
+# Toy Dataset
+
+```{r}
+#Filtered table toy
+
+toy_filtered_I<-toy_df%>%
+  select(all_of(filtering_ASV(toy_df)$keep))
+
+
+```
+
+## Pipeline I-Stepwise Function
+
+```{r}
+# applying the pipeline
+toy_K1_output<-k_finetune_cummulative(toy_df)
+```
+
+```{r}
+#Extracting the DF
+
+toy_K1_df<-toy_K1_output$df_results
+toy_K1_df$added_asv <- factor(toy_K1_df$reintroduced_asv, levels = unique(toy_K1_df$reintroduced_asv))
+
+unfilt_toy_k1<-toy_K1_output$values_unfiltered
+filt_toy_k1<-toy_K1_output$values_filtered
+
+time_k1_toy<-toy_K1_output$time.take
+
+```
+
+### Plots
+
+```{r}
+
+plot_K1_toy<-plot_K(toy_K1_df, unfilt_toy_k1$K, filt_toy_k1$K )
+plot_K1_toy
+
+plot_BC1_toy<-plot_BC(toy_K1_df, toy_K1_df$BC, filt_toy_k1$BC )
+plot_BC1_toy
+
+plot_J1_toy<-plot_J(toy_K1_df, toy_K1_df$J, filt_toy_k1$J )
+plot_J1_toy
+
+  
+```
+
+## Pipeline II-Combinatorial Function
+
+```{r}
+# applying the pipeline
+toy_K2_output<-k_finetune_combi(toy_df)
+
+
+```
+
+```{r}
+# Extracting the Dataframe
+toy_K2_df<-toy_K2_output$df_results
+toy_K2_df$added_asv <- factor(toy_K2_df$asv_combination, levels = unique(toy_K2_df$asv_combination))
+
+
+unfilt_k2_toy<-toy_K2_output$values_unfiltered
+unfilt_k2_toy
+filt_k2_toy<-toy_K2_output$values_filtered
+filt_k2_toy
+time_k2<-toy_K2_output$time.take
+```
+
+### Plots
+
+```{r}
+plot_K2_toy<-cool_plot_combi_k(toy_K2_df,unfilt_k2_toy$K_values, filt_k2_toy$K_values)
+plot_K2_toy
+
+plot_BC2_toy<-cool_plot_combi_bc(toy_K2_df,unfilt_k2_toy$BC_values, filt_k2_toy$BC_values )
+plot_BC2_toy
+
+plot_J2_toy<-cool_plot_combi_j(toy_K2_df,unfilt_k2_toy$J_values, filt_k2_toy$J_values )
+plot_J2_toy
+
+```
+
+## Pipeline III- Wipeout
+
+```{r}
+toy_K3_output<-k_finetune_wipeout(toy_df)
+
+toy_K3_df<-toy_K3_output$df_results
+toy_K3_df$added_asv <- factor(toy_K3_df$added_asv, levels = unique(toy_K3_df$added_asv))
+
+toy_K3_df<-toy_K3_df[-1,]
+unfilt_k3_toy<-toy_K3_output$values_unfiltered
+filt_k3_toy<-toy_K3_output$values_filtered
+
+time_k3<-toy_K3_output$time.take
+
+```
+
+### Plots
+
+```{r}
+plot_K3_toy<-plot_K2(toy_K3_df, unfilt_k3_toy$K)
+plot_K3_toy
+
+
+plot_BC3_toy<-plot_BC2(toy_K3_df, unfilt_k3_toy$BC)
+plot_BC3_toy
+
+plot_J3_toy<-plot_J2(toy_K3_df, unfilt_k3_toy$J)
+plot_J3_toy
+
+
+
+toy_K3_df[which.max(toy_K3_df$K_values),]
+
+```
+
+## Pipeline IV- Add One
+
+```{r}
+toy_K4_output<-k_finetune_sequential(toy_df)
+
+toy_K4_df<-toy_K4_output$df_results
+toy_K4_df$added_asv <- factor(toy_K4_df$added_asv, levels = unique(toy_K4_df$added_asv))
+
+
+unfilt_k4_toy<-toy_K4_output$unfiltered_values
+filt_k4_toy<-toy_K4_output$filtered_values
+
+time_k4<-toy_K4_output$time.take
+
+```
+
+### Plots
+
+```{r}
+plot_K4_toy<-plot_K(toy_K4_df, unfilt_k4_toy$K_values, filt_k4_toy$K_values)
+plot_K4_toy
+
+plot_BC4_toy<-plot_BC(toy_K4_df, unfilt_k4_toy$BC_values, filt_k4_toy$BC_values)
+plot_BC4_toy
+
+plot_toy4_j_<-plot_J(toy_K4_df, unfilt_k4_toy$J_values, filt_k4_toy$J_values)
+plot_toy4_j_
+
+
+
+```
+
+## Pipeline V-Semi-Wipeout
+
+```{r}
+toy_K5_output<-k_finetune_semi_wipe(toy_df)
+
+toy_K5_df<-toy_K5_output$iterative_df
+toy_K5_df$added_asv <- factor(toy_K5_df$added_asv, levels = unique(toy_K5_df$added_asv))
+
+
+unfilt_k5_toy<-toy_K5_output$values_unfiltered
+filt_k5_toy<-toy_K5_output$values_filtered
+
+time_k5<-toy_K5_output$time.take
+time_k5
+```
+
+```{r}
+plot_K5_toy<-plot_K(toy_K5_df, unfilt_k5_toy$K_values, filt_k5_toy$K_values)
+plot_K5_toy
+
+plot_BC5_toy<-plot_BC(toy_K5_df, unfilt_k5_toy$BC_values, filt_k5_toy$BC_values)
+plot_BC5_toy
+
+plot_J5_toy<-plot_J(toy_K5_df, unfilt_k5_toy$J_values, filt_k5_toy$J_values)
+plot_J5_toy
+
+
+
+
+
+```
+
+## Pipeline VI-Stepwise-Weighted
+
+```{r}
+toy_K6_output<-k_finetune_weighted(toy_df)
+
+time_k6<-toy_K6_output$take.time
+```
+
+```{r}
+#Getting the outputs for each parameter condition
+output_toy_K6_a1<-toy_K6_output$df_alpha1
+output_toy_K6_b1<-toy_K6_output$df_beta1
+
+output_toy_K6_a05<-toy_K6_output$df_alpha05
+output_toy_K6_b05<-toy_K6_output$df_beta05
+```
+
+### Generating a pivot longer dataframe
+
+```{r}
+#Making a function for it
+longer_output_k6<-function(df){
+  df<-df%>%
+    rename(parameter = any_of(c("ai", "bi")))
+  df<-pivot_longer(df, cols=starts_with("ASV"), names_to="ASV", values_to="k_value")
+  return(df)
+}
+```
+
+```{r}
+toy_a1_toy<-longer_output_k6(output_toy_K6_a1)
+
+toy_b1_toy<-longer_output_k6(output_toy_K6_b1)
+
+
+toy_a05_toy<-longer_output_k6(output_toy_K6_a05)
+
+toy_b05_toy<-longer_output_k6(output_toy_K6_b05)
+```
+
+```{r}
+#Creating a variable to save the weight conditions
+
+weight_id<-c(paste("a1_fixed_", sep="", toy_a1_toy$parameter), 
+             paste("b1_fixed_", sep="", toy_a1_toy$parameter),
+             paste("a05_fixed_", sep="", toy_a1_toy$parameter), 
+             paste("b05_fixed_", sep="", toy_a1_toy$parameter))
+
+#Generating the dataframe 
+
+df_toyweight<-rbind(toy_a1_toy,toy_b1_toy,toy_a05_toy, toy_b05_toy)
+#Adding the column for the weight
+
+df_toyweight<-cbind(weight_id, df_toyweight)
+
+df_toyweight$condition <- sub("(_.*)$", "", df_toyweight$weight_id)
+
+df_toyweight[which.max(df_toyweight$k_value),] #Max was for b05 and alpha 1; ASV36
+
+
+
+```
+
+```{r}
+# Obtaining all ASVs 16 weihgts
+
+toy_ASV36_6<-df_toyweight%>%
+  filter(ASV=="ASV36")
+
+df_BETA05_toy<-df_toyweight%>%
+  filter(weight_id=="b05_fixed_1")
+
+
+weighted_plot(df_toyweight)
+#Obtaining K weighted for the filtered and unfiltered tables for b05 and a1
+
+toy_weighted_unfiltered<-K_calculator_weighted(toy_df, 1, 05)
+toy_weighted_filtered<-K_calculator_weighted(toy_filtered_I, 1, 05)
+
+plot_K6_toy_max<-ggplot(data=df_BETA05_toy, aes(ASV, k_value))+
+    geom_point(size=3, colour="#1D9AA1")+ geom_line(aes(group=1), linewidth=1.25, colour="#1D9AA1")+
+    theme(
+      axis.text.x = element_text(angle = 90, hjust = 1, size = 11), 
+      axis.text.y = element_text(size = 12), 
+      axis.title = element_text(size = 14)  
+    ) +geom_hline(yintercept=toy_weighted_filtered, linewidth=1, linetype=2, colour="#124163")+geom_hline(yintercept=toy_weighted_unfiltered, linewidth=1, linetype=2, colour="#3E8853")
+  
+
+plot_K6_toy_max
+
+
+
+```
+
+# Original MBQC Dataset
+
+```{r}
+# Filtered mbqc
+
+mbqc_filter_I<-mbqc%>%
+  select(all_of(filtering_ASV(mbqc)$keep))
+
+mbqc_filter_II<-mbqc%>%
+  select(all_of(filter_conservative(mbqc)$keep))
+```
+
+## Pipeline I
+
+```{r}
+output_k1_mbqc<-k_finetune_cummulative(mbqc)
+```
+
+### Plots
+
+```{r}
+df_k1_mbqc<-output_k1_mbqc$df_results
+mbqc1_time<-output_k1_mbqc$time.take
+mbqc1_time
+
+
+df_k1_mbqc$added_asv <- factor(df_k1_mbqc$reintroduced_asv, levels = unique(df_k1_mbqc$reintroduced_asv))
+df_k1_mbqc_unfilt<-output_k1_mbqc$values_unfiltered
+df_k1_mbqc_filt<-output_k1_mbqc$values_filtered
+
+
+```
+
+### Plots
+
+```{r}
+plot_mbqc_K1<-plot_K(df_k1_mbqc, df_k1_mbqc_unfilt$K, df_k1_mbqc_filt$K)
+plot_mbqc_K1
+
+plot_mbqc_BC1<-plot_BC(df_k1_mbqc, df_k1_mbqc_unfilt$BC, df_k1_mbqc_filt$BC)
+plot_mbqc_BC1
+
+plot_mbqc_J1<-plot_J(df_k1_mbqc, df_k1_mbqc_unfilt$J, df_k1_mbqc_filt$J)
+plot_mbqc_J1
+```
+
+### Obtaining Max Value
+
+```{r}
+obs_max1_mbqc<-df_k1_mbqc[which.max(df_k1_mbqc$K_values),] 
+obs_max1_mbqc
+
+#Highest K was in iteration 1 after introduction of ASV 82
+
+X82<-mbqc$X82
+
+
+K1_mbqc<-cbind(mbqc_filter_I, X82=X82)
+
+
+```
+
+## Pipeline II
+
+The output for this pipeline is expected to be identical for both tables. The function used is an adaptation of the one where all of the combinations are tested
+
+```{r}
+output_k2_mbqc<-k_finetune_combi_ii(mbqc)
+```
+
+```{r}
+mbqc_time2<-output_k2_mbqc$time.take
+mbqc_time2<-as.numeric(mbqc_time2)
+
+df_k2_mbqc<-output_k2_mbqc$df_results
+
+unfiltered_valuesK2<-output_k2_mbqc$values_unfiltered
+filtered_valuesK2<-output_k2_mbqc$values_filtered
+
+
+```
+
+### Checking if there are any combinations with K above filtered and unfiltered
+
+```{r}
+df_k2_mbqc[df_k2_mbqc$K_values > filtered_valuesK2$K_values, ] #No combinations above filtered K
+df_k2_mbqc[df_k2_mbqc$K_values < unfiltered_valuesK2$K_values, ] # Five combinations above the unfiltered K
+
+```
+
+```{r}
+#Saving iterations with K above unfiltered
+k_threshold <- mean(c(filtered_valuesK2$K_values, unfiltered_valuesK2$K_values))
+df_k2_below <- df_k2_mbqc[df_k2_mbqc$K_values < unfiltered_valuesK2$K_values, ]
+
+k_threshold
+
+plot_K2(df_k2_mbqc, unfiltered_valuesK2$K_values)
+
+ggplot(data=df_k2_mbqc, aes(iteration, K_values))+
+    geom_point(size=1, colour="#1D9AA1")+ geom_line(aes(group=1), linewidth=0.5, colour="#1D9AA1")+
+    geom_hline(yintercept=filtered_valuesK2$K_values, linewidth=1, linetype=2, colour="#124163")+
+    geom_hline(yintercept=unfiltered_valuesK2$K_values, linewidth=1, linetype=2, colour="#3E8853")
+
+```
+
+```{r}
+
+df_k2_mbqc[-1,][which.max(df_k2_mbqc[-1,]$K_values),] #Max is combo X16 and X47
+
+cols_16_47<-cbind(X16=mbqc$X16, X47=mbqc$X47)
+
+K2_mbqc<-cbind(mbqc_filter_I, cols_16_47)
+```
+
+### Pipeline III-Wipeout
+
+```{r}
+output_k3_mbqc<-k_finetune_wipeout(mbqc)
+```
+
+### Plots
+
+```{r}
+df_k3_mbqc<-output_k3_mbqc$df_results
+
+df_k3_mbqc<-df_k3_mbqc[-1,]
+mbqc_K33_time<-output_k3_mbqc$time.take
+mbqc_K33_time
+df_k3_mbqc_unfilt<-output_k3_mbqc$values_unfiltered
+
+
+plot_mbqc_K3<-plot_K2(df_k3_mbqc, df_k3_mbqc_unfilt$K_values)
+plot_mbqc_K3
+
+plot_mbqc_BC3<-plot_BC2(df_k3_mbqc, df_k3_mbqc_unfilt$BC_values)
+plot_mbqc_BC3
+
+plot_mbqc_J3<-plot_J2(df_k3_mbqc, df_k3_mbqc_unfilt$J_values)
+plot_mbqc_J3
+```
+
+### Obtaining Max K value
+
+```{r}
+obs_max3_mbqc<-df_k3_mbqc[which.max(df_k3_mbqc$K_values),]
+obs_max3_mbqc
+#Max value is in iteration 7
+
+K3_mbqc<-mbqc[1:8]
+
+```
+
+## Pipeline IV- Add One
+
+```{r}
+output_k4_mbqc<-k_finetune_sequential(mbqc)
+```
+
+### Plots
+
+```{r}
+df_k4_mbqc<-output_k4_mbqc$df_results
+mbqc_K4_time<-output_k4_mbqc$time.take
+mbqc_K4_time
+df_k4_mbqc$added_asv <- factor(df_k4_mbqc$added_asv, levels = unique(df_k4_mbqc$added_asv))
+
+unfiltered_valuesK4_mbqc<-output_k4_mbqc$unfiltered_values
+filtered_valuesK4_mbqc<-output_k4_mbqc$filtered_values
+```
+
+```{r}
+plot_K4_mbqc<-plot_K(df_k4_mbqc, unfiltered_valuesK4_mbqc$K_values, filtered_valuesK4_mbqc$K_values)
+plot_K4_mbqc
+
+plot_BC4_mbqc<-plot_BC(df_k4_mbqc, unfiltered_valuesK4_mbqc$BC_values, filtered_valuesK4_mbqc$BC_values)
+plot_BC4_mbqc
+
+plot_J4_mbqc<-plot_J(df_k4_mbqc, unfiltered_valuesK4_mbqc$J_values, filtered_valuesK4_mbqc$J_values)
+plot_J4_mbqc
+```
+
+### Obtaining Max-K value
+
+```{r}
+obs_max4_mbqc<-df_k4_mbqc[which.max(df_k4_mbqc$K_values),]
+obs_max4_mbqc #K16
+
+
+K4_mbqc<-cbind(mbqc_filter_I, X16=mbqc$X16)
+```
+
+This pipeline is not biased by the order of the ASVs
+
+## Pipeline V: Semi-wipeout
+
+```{r warning=FALSE}
+output_k5_mbqc<-k_finetune_semi_wipe(mbqc)
+```
+
+### Plots
+
+```{r}
+df_k5_mbqc<-output_k5_mbqc$iterative_df
+mbqc5_time<-output_k5_mbqc$time.take
+mbqc5_time
+df_k5_mbqc$added_asv <- factor(df_k5_mbqc$added_asv, levels = unique(df_k5_mbqc$added_asv))
+
+unfiltered_valuesK5_mbqc<-output_k5_mbqc$values_unfiltered
+filtered_valuesK5_mbqc<-output_k5_mbqc$values_filtered
+```
+
+```{r}
+plot_K5_mbqc<-plot_K(df_k5_mbqc, unfiltered_valuesK5_mbqc$K_values, filtered_valuesK5_mbqc$K_values)
+plot_K5_mbqc
+
+
+plot_BC5_mbqc<-plot_BC(df_k5_mbqc, unfiltered_valuesK5_mbqc$BC_values, filtered_valuesK5_mbqc$BC_values)
+plot_BC5_mbqc
+
+
+plot_J5_mbqc<-plot_J(df_k5_mbqc, unfiltered_valuesK5_mbqc$J_values, filtered_valuesK5_mbqc$J_values)
+plot_J5_mbqc
+
+
+```
+
+### Obtaining Max K value
+
+```{r}
+obs_max5_mbqc<-df_k5_mbqc[which.max(df_k5_mbqc$K_values),]
+obs_max5_mbqc #K54
+
+
+
+
+mbqc_5<-cbind(mbqc_filter_II, X54=mbqc$X54)
+
+
+#Verifying the K is the same
+obs_max5_mbqc$K_values==K_calculator(mbqc_5)
+
+```
+
+## Pipeline VI- Stepwise-Weighted
+
+```{r}
+output_k6_mbqc<-k_finetune_weighted(mbqc)
+```
+
+```{r}
+mbqc_K6_time<-output_k6_mbqc$take.time
+output_mbqc_K6_a1<-output_k6_mbqc$df_alpha1
+output_mbqc_K6_b1<-output_k6_mbqc$df_beta1
+
+output_mbqc_K6_a05<-output_k6_mbqc$df_alpha05
+output_mbqc_K6_b05<-output_k6_mbqc$df_beta05
+```
+
+```{r}
+# Making a long dataframe
+mbqc_a1_mbqc<-longer_output_k6_b(output_mbqc_K6_a1)
+
+mbqc_b1_mbqc<-longer_output_k6_b(output_mbqc_K6_b1)
+
+
+mbqc_a05_mbqc<-longer_output_k6_b(output_mbqc_K6_a05)
+
+mbqc_b05_mbqc<-longer_output_k6_b(output_mbqc_K6_b05)
+
+#Giving Weightes
+
+weight_id<-c(paste("a1_fixed_", sep="", mbqc_b1_mbqc$parameter), 
+             paste("b1_fixed_", sep="", mbqc_b1_mbqc$parameter),
+             paste("a05_fixed_", sep="", mbqc_b1_mbqc$parameter), 
+             paste("b05_fixed_", sep="", mbqc_b1_mbqc$parameter))
+```
+
+```{r}
+#Dataset with all of them
+df_mbqc_weighted<-rbind(mbqc_a1_mbqc,mbqc_b1_mbqc,mbqc_a05_mbqc, mbqc_b05_mbqc)
+df_mbqc_weighted<-cbind(weight_id, df_mbqc_weighted)
+df_mbqc_weighted$condition <- sub("(_.*)$", "", df_mbqc_weighted$weight_id)
+```
+
+### Checking for the highest K value
+
+```{r}
+max_mbqc_vi<-df_mbqc_weighted[which.max(df_mbqc_weighted$k_value),]
+max_mbqc_vi #For X16
+```
+```{r}
+df_mbqc_weighted$condition<-factor(df_mbqc_weighted$condition)
+
+df_mbqc_weighted$parameter<-factor(df_mbqc_weighted$parameter)
+df_mbqc_weighted_2 <- filter(df_mbqc_weighted, condition %in% c("b05", "a05"))
+
+head(df_mbqc_weighted_2)
+ggplot(data=df_mbqc_weighted_2, aes(ASV, k_value, colour=parameter, shape=condition))+geom_point()+ylim(0.44, 0.52)
+```
+
+
+```{r}
+#Producing the dataset for which K weighted was max
+asvs_select<-filtering_ASV(mbqc)$bin
+
+asvs_select<-asvs_select[1:6]
+
+mbqc_6<-mbqc%>%
+  select(all_of(asvs_select))
+mbqc_6<-cbind(mbqc_6, mbqc_filter_I)
+
+```
+
+```{r}
+# Saving all beta 05 observations
+df_BETA05_mbqc<-df_mbqc_weighted%>%
+  filter(weight_id=="b05_fixed_1")
+
+mbqc_weighted_unfiltered<-K_calculator_weighted(mbqc, 1, 0.5)
+
+mbqc_weighted_filtered<-K_calculator_weighted(mbqc_filter_I, 1, 0.5)
+
+plot_K6_mbqc_max<-ggplot(data=df_BETA05_mbqc, aes(ASV, k_value))+
+    geom_point(size=3, colour="#1D9AA1")+ geom_line(aes(group=1), linewidth=1.25, colour="#1D9AA1")+
+    theme(
+      axis.text.x = element_text(angle = 90, hjust = 1, size = 11), 
+      axis.text.y = element_text(size = 12), 
+      axis.title = element_text(size = 14)  
+    ) +geom_hline(yintercept=mbqc_weighted_filtered, linewidth=1, linetype=2, colour="#124163")+geom_hline(yintercept=mbqc_weighted_unfiltered, linewidth=1, linetype=2, colour="#3E8853")
+  
+
+plot_K6_mbqc_max
+
+
+mbqc_X16_6<-df_mbqc_weighted%>%
+  filter(ASV=="X16")
+
+weighted_plot(mbqc_X16_6)
+```
+
+### Alpha and Beta Diversity Comparison
+
+```{r}
+all_asvs <- union(colnames(K1_mbqc), colnames(mbqc_6))
+
+missing_mbqc_i <- setdiff(all_asvs, colnames(K1_mbqc))
+K1_mbqc <- K1_mbqc %>%
+  mutate(!!!setNames(rep(list(0), length(missing_mbqc_i)), missing_mbqc_i))
+
+
+missing_mbqc_vi<- setdiff(all_asvs, colnames(mbqc_6))
+mbqc_6 <- mbqc_6 %>%
+  mutate(!!!setNames(rep(list(0), length(missing_mbqc_vi)), missing_mbqc_vi))
+```
+
+```{r}
+
+K1_mbqc <- K1_mbqc[, all_asvs]
+mbqc_6 <- mbqc_6[, all_asvs]
+
+K1_mbqc$experiment <- "max_MBQC_P1"
+mbqc_6$experiment <- "max_MBQC_P6"
+
+merged_asv_table <- bind_rows(K1_mbqc, mbqc_6)
+
+
+```
+
+```{r}
+merged_asv_table <- merged_asv_table[rowSums(select(merged_asv_table, where(is.numeric))) > 0, ]
+
+# Remove metadata column
+asv_counts <- merged_asv_table[, !colnames(merged_asv_table) %in% "experiment"]
+asv_counts<-asv_counts[rowSums(asv_counts) > 0, ]
+# Shannon Diversity
+shannon <- diversity(asv_counts, index = "shannon")
+
+# Evenness (Shannon / log(S))
+evenness <- shannon / log(specnumber(asv_counts))  # S = richness
+
+# Richness (Observed ASVs)
+richness <- specnumber(asv_counts)
+
+# Combine into a dataframe
+alpha_df <- data.frame(
+  Sample = rownames(merged_asv_table),
+  Experiment = merged_asv_table$experiment,
+  Shannon = shannon,
+  Evenness = evenness,
+  Richness = richness
+)
+```
+
+```{r}
+# Convert to long format
+alpha_long <- alpha_df %>%
+  pivot_longer(cols = c(Shannon, Evenness, Richness), 
+               names_to = "Metric", 
+               values_to = "Value")
+
+# Plot
+ggplot(alpha_long, aes(x = Experiment, y = Value, fill = Experiment)) +
+  geom_boxplot() +
+  facet_wrap(~ Metric, scales = "free_y") +
+  scale_fill_manual(values = c(
+    "max_MBQC_P6" = "#1D9AA1", 
+    "max_MBQC_P1" = "#124163"  
+  )) +
+  labs(title = "Alpha Diversity Metrics", x = "", y = "Value") 
+
+metrics <- c("Shannon", "Evenness", "Richness")
+
+results <- lapply(metrics, function(metric) {
+  formula <- as.formula(paste(metric, "~ Experiment"))
+  t.test(formula, data = alpha_df)
+})
+
+names(results) <- metrics
+results$Shannon
+results$Evenness
+results$Richness
+```
+
+```{r}
+
+# Bray-Curtis distance
+bray_dist <- vegdist(asv_counts, method = "bray")
+# PCoA 
+pcoa_res <- cmdscale(bray_dist, eig = TRUE, k = 2)
+
+pcoa_df <- data.frame(
+  Sample = rownames(merged_asv_table),
+  Axis1 = pcoa_res$points[,1],
+  Axis2 = pcoa_res$points[,2],
+  Experiment = merged_asv_table$experiment
+)
+summary(merged_asv_table$experiment)
+# Plot
+ggplot(pcoa_df, aes(x = Axis1, y = Axis2, colour = Experiment, shape=Experiment)) +
+  geom_jitter(width = 0.01, height = 0.01, size = 1.5) +
+  labs(x = "PCoA 1", y = "PCoA 2", title = "Bray-Curtis PCoA") +
+  scale_fill_manual(values = c(
+    "max_MBQC_P6" = "#1D9AA1", 
+    "max_MBQC_P1" = "#124163"  
+  ))
+
+
+adonis2(bray_dist ~ Experiment, data = pcoa_df)
+```
+
+# Arranged MBQC Dataset
+
+## Pipeline I
+
+```{r}
+output_k1_mbqc_arranged<-k_finetune_cummulative(mbqc_arranged)
+```
+
+### Plots
+
+```{r}
+df_k1_mbqc_arranged<-output_k1_mbqc_arranged$df_results
+mbqc_arranged1_time<-output_k1_mbqc_arranged$time.take
+mbqc_arranged1_time
+
+
+df_k1_mbqc_arranged$added_asv <- factor(df_k1_mbqc_arranged$reintroduced_asv, levels = unique(df_k1_mbqc_arranged$reintroduced_asv))
+df_k1_mbqc_arranged_unfilt<-output_k1_mbqc_arranged$values_unfiltered
+df_k1_mbqc_arranged_filt<-output_k1_mbqc_arranged$values_filtered
+
+
+```
+
+### Plots
+
+```{r}
+plot_mbqc_arranged_K1<-plot_K(df_k1_mbqc_arranged, df_k1_mbqc_arranged_unfilt$K, df_k1_mbqc_arranged_filt$K)
+plot_mbqc_arranged_K1
+
+plot_mbqc_arranged_BC1<-plot_BC(df_k1_mbqc_arranged, df_k1_mbqc_arranged_unfilt$BC, df_k1_mbqc_arranged_filt$BC)
+plot_mbqc_arranged_BC1
+
+plot_mbqc_arranged_J1<-plot_J(df_k1_mbqc_arranged, df_k1_mbqc_arranged_unfilt$J, df_k1_mbqc_arranged_filt$J)
+plot_mbqc_arranged_J1
+```
+
+### Obtaining Max Value
+
+```{r}
+obs_max1_mbqc_arranged<-df_k1_mbqc_arranged[which.max(df_k1_mbqc_arranged$K_values),] 
+obs_max1_mbqc_arranged
+
+#Highest K was in iteration 1 after introduction of ASV 82
+
+X5<-mbqc_arranged$X5
+
+
+K1_mbqc_arranged<-cbind(mbqc_filter_I, X5=X5)
+
+
+```
+
+## Pipeline II
+
+The output for this pipeline is expected to be identical for both tables. The function used is an adaptation of the one where all of the combinations are tested
+
+### Pipeline III-Wipeout
+
+```{r}
+output_k3_mbqc_arranged<-k_finetune_wipeout(mbqc_arranged)
+```
+
+### Plots
+
+```{r}
+df_k3_mbqc_arranged<-output_k3_mbqc_arranged$df_results
+
+df_k3_mbqc_arranged<-df_k3_mbqc_arranged[-1,]
+mbqc_arranged_K3_time<-output_k3_mbqc_arranged$time.take
+mbqc_arranged_K3_time
+df_k3_mbqc_arranged_unfilt<-output_k3_mbqc_arranged$values_unfiltered
+
+
+plot_mbqc_arranged_K3<-plot_K2(df_k3_mbqc_arranged, df_k3_mbqc_arranged_unfilt$K_values)
+plot_mbqc_arranged_K3
+
+plot_mbqc_arranged_BC3<-plot_BC2(df_k3_mbqc_arranged, df_k3_mbqc_arranged_unfilt$BC_values)
+plot_mbqc_arranged_BC3
+
+plot_mbqc_arranged_J3<-plot_J2(df_k3_mbqc_arranged, df_k3_mbqc_arranged_unfilt$J_values)
+plot_mbqc_arranged_J3
+```
+
+### Obtaining Max K value
+
+```{r}
+obs_max3_mbqc_arranged<-df_k3_mbqc_arranged[which.max(df_k3_mbqc_arranged$K_values),]
+obs_max3_mbqc_arranged
+#Max value is in iteration 7
+
+K3_mbqc_arranged<-mbqc_arranged[1:107]
+
+```
+
+## Pipeline IV- Add One
+
+```{r}
+output_k4_mbqc_arranged<-k_finetune_sequential(mbqc_arranged)
+```
+
+### Plots
+
+```{r}
+df_k4_mbqc_arranged<-output_k4_mbqc_arranged$df_results
+mbqc_arranged_K4_time<-output_k4_mbqc_arranged$time.take
+mbqc_arranged_K4_time
+df_k4_mbqc_arranged$added_asv <- factor(df_k4_mbqc_arranged$added_asv, levels = unique(df_k4_mbqc_arranged$added_asv))
+
+unfiltered_valuesK4_mbqc_arranged<-output_k4_mbqc_arranged$unfiltered_values
+filtered_valuesK4_mbqc_arranged<-output_k4_mbqc_arranged$filtered_values
+```
+
+```{r}
+plot_K4_mbqc_arranged<-plot_K(df_k4_mbqc_arranged, unfiltered_valuesK4_mbqc_arranged$K_values, filtered_valuesK4_mbqc_arranged$K_values)
+plot_K4_mbqc_arranged
+
+plot_BC4_mbqc_arranged<-plot_BC(df_k4_mbqc_arranged, unfiltered_valuesK4_mbqc_arranged$BC_values, filtered_valuesK4_mbqc_arranged$BC_values)
+plot_BC4_mbqc_arranged
+
+plot_J4_mbqc_arranged<-plot_J(df_k4_mbqc_arranged, unfiltered_valuesK4_mbqc_arranged$J_values, filtered_valuesK4_mbqc_arranged$J_values)
+plot_J4_mbqc_arranged
+```
+
+### Obtaining Max-K value
+
+```{r}
+obs_max4_mbqc_arranged<-df_k4_mbqc_arranged[which.max(df_k4_mbqc_arranged$K_values),]
+obs_max4_mbqc_arranged #K16
+
+
+K4_mbqc_arranged<-cbind(mbqc_filter_I, X16=mbqc_arranged$X16)
+```
+
+This pipeline is not biased by the order of the ASVs
+
+## Pipeline V: Semi-wipeout
+
+```{r warning=FALSE}
+output_k5_mbqc_arranged<-k_finetune_semi_wipe(mbqc_arranged)
+```
+
+### Plots
+
+```{r}
+df_k5_mbqc_arranged<-output_k5_mbqc_arranged$iterative_df
+mbqc_arranged5_time<-output_k5_mbqc_arranged$time.take
+mbqc_arranged5_time
+df_k5_mbqc_arranged$added_asv <- factor(df_k5_mbqc_arranged$added_asv, levels = unique(df_k5_mbqc_arranged$added_asv))
+
+unfiltered_valuesK5_mbqc_arranged<-output_k5_mbqc_arranged$values_unfiltered
+filtered_valuesK5_mbqc_arranged<-output_k5_mbqc_arranged$values_filtered
+```
+
+```{r}
+plot_K5_mbqc_arranged<-plot_K(df_k5_mbqc_arranged, unfiltered_valuesK5_mbqc_arranged$K_values, filtered_valuesK5_mbqc_arranged$K_values)
+plot_K5_mbqc_arranged
+
+
+plot_BC5_mbqc_arranged<-plot_BC(df_k5_mbqc_arranged, unfiltered_valuesK5_mbqc_arranged$BC_values, filtered_valuesK5_mbqc_arranged$BC_values)
+plot_BC5_mbqc_arranged
+
+
+plot_J5_mbqc_arranged<-plot_J(df_k5_mbqc_arranged, unfiltered_valuesK5_mbqc_arranged$J_values, filtered_valuesK5_mbqc_arranged$J_values)
+plot_J5_mbqc_arranged
+
+
+```
+
+### Obtaining Max K value
+
+```{r}
+obs_max5_ar<-df_k5_mbqc_arranged[which.max(df_k5_mbqc_arranged$K_values),]
+obs_max5_ar #K1
+
+
+
+
+mbqc_5_arranged<-cbind(mbqc_filter_II, X1=mbqc_arranged$X1)
+
+
+#Verifying the K is the same
+obs_max5_ar$K_values==K_calculator(mbqc_5_arranged)
+
+```
+
+## Pipeline VI- Stepwise-Weighted
+
+```{r}
+output_k6_mbqc_arranged<-k_finetune_weighted(mbqc_arranged)
+```
+
+```{r}
+mbqc_arranged_K6_time<-output_k6_mbqc_arranged$take.time
+output_mbqc_arranged_K6_a1<-output_k6_mbqc_arranged$df_alpha1
+output_mbqc_arranged_K6_b1<-output_k6_mbqc_arranged$df_beta1
+
+output_mbqc_arranged_K6_a05<-output_k6_mbqc_arranged$df_alpha05
+output_mbqc_arranged_K6_b05<-output_k6_mbqc_arranged$df_beta05
+```
+
+```{r}
+# Making a long dataframe
+mbqc_arranged_a1_mbqc_arranged<-longer_output_k6_b(output_mbqc_arranged_K6_a1)
+
+mbqc_arranged_b1_mbqc_arranged<-longer_output_k6_b(output_mbqc_arranged_K6_b1)
+
+
+mbqc_arranged_a05_mbqc_arranged<-longer_output_k6_b(output_mbqc_arranged_K6_a05)
+
+mbqc_arranged_b05_mbqc_arranged<-longer_output_k6_b(output_mbqc_arranged_K6_b05)
+
+#Giving Weightes
+
+weight_id<-c(paste("a1_fixed_", sep="", mbqc_arranged_b1_mbqc_arranged$parameter), 
+             paste("b1_fixed_", sep="", mbqc_arranged_b1_mbqc_arranged$parameter),
+             paste("a05_fixed_", sep="", mbqc_arranged_b1_mbqc_arranged$parameter), 
+             paste("b05_fixed_", sep="", mbqc_arranged_b1_mbqc_arranged$parameter))
+```
+
+```{r}
+#Dataset with all of them
+df_mbqc_arranged_weighted<-rbind(mbqc_arranged_a1_mbqc_arranged,mbqc_arranged_b1_mbqc_arranged,mbqc_arranged_a05_mbqc_arranged, mbqc_arranged_b05_mbqc_arranged)
+df_mbqc_arranged_weighted<-cbind(weight_id, df_mbqc_arranged_weighted)
+df_mbqc_arranged_weighted$condition <- sub("(_.*)$", "", df_mbqc_arranged_weighted$weight_id)
+```
+
+### Checking for the highest K value
+
+```{r}
+max_mbqc_arranged_vi<-df_mbqc_arranged_weighted[which.max(df_mbqc_arranged_weighted$k_value),]
+max_mbqc_arranged_vi #For X16
+```
+
+```{r}
+#Producing the dataset for which K weighted was max
+asvs_select<-filtering_ASV(mbqc_arranged)$bin
+asvs_select
+asvs_select<-asvs_select[1:7]
+
+mbqc_arranged_6<-mbqc_arranged%>%
+  select(all_of(asvs_select))
+mbqc_arranged_6<-cbind(mbqc_filter_I, mbqc_arranged_6)
+
+```
+
+```{r}
+# Saving all beta 05 observations
+df_BETA05_mbqc_arranged<-df_mbqc_arranged_weighted%>%
+  filter(weight_id=="b05_fixed_1")
+
+mbqc_arranged_weighted_unfiltered<-K_calculator_weighted(mbqc_arranged, 1, 0.5)
+
+mbqc_arranged_weighted_filtered<-K_calculator_weighted(mbqc_filter_I, 1, 0.5)
+
+plot_K6_mbqc_arranged_max<-ggplot(data=df_BETA05_mbqc_arranged, aes(ASV, k_value))+
+    geom_point(size=3, colour="#1D9AA1")+ geom_line(aes(group=1), linewidth=1.25, colour="#1D9AA1")+
+    theme(
+      axis.text.x = element_text(angle = 90, hjust = 1, size = 11), 
+      axis.text.y = element_text(size = 12), 
+      axis.title = element_text(size = 14)  
+    ) +geom_hline(yintercept=mbqc_arranged_weighted_filtered, linewidth=1, linetype=2, colour="#124163")+geom_hline(yintercept=mbqc_arranged_weighted_unfiltered, linewidth=1, linetype=2, colour="#3E8853")
+  
+
+plot_K6_mbqc_arranged_max
+
+
+mbqc_arranged_X16_6<-df_mbqc_arranged_weighted%>%
+  filter(ASV=="X16")
+
+weighted_plot(mbqc_arranged_X16_6)
+```
+
+### Alpha and Beta Diversity Comparison
+
+```{r}
+all_asvs <- union(colnames(K1_mbqc_arranged), colnames(mbqc_arranged_6))
+
+missing_mbqc_arranged_i <- setdiff(all_asvs, colnames(K1_mbqc_arranged))
+K1_mbqc_arranged <- K1_mbqc_arranged %>%
+  mutate(!!!setNames(rep(list(0), length(missing_mbqc_arranged_i)), missing_mbqc_arranged_i))
+
+
+missing_mbqc_arranged_vi<- setdiff(all_asvs, colnames(mbqc_arranged_6))
+mbqc_arranged_6 <- mbqc_arranged_6 %>%
+  mutate(!!!setNames(rep(list(0), length(missing_mbqc_arranged_vi)), missing_mbqc_arranged_vi))
+```
+
+```{r}
+
+K1_mbqc_arranged <- K1_mbqc_arranged[, all_asvs]
+mbqc_arranged_6 <- mbqc_arranged_6[, all_asvs]
+
+K1_mbqc_arranged$experiment <- "max_mbqc_arranged_P1"
+mbqc_arranged_6$experiment <- "max_mbqc_arranged_P6"
+
+merged_asv_table_arranged <- bind_rows(K1_mbqc_arranged, mbqc_arranged_6)
+
+
+```
+
+```{r}
+merged_asv_table_arranged <- merged_asv_table_arranged[rowSums(select(merged_asv_table_arranged, where(is.numeric))) > 0, ]
+
+# Remove metadata column
+asv_counts <- merged_asv_table_arranged[, !colnames(merged_asv_table_arranged) %in% "experiment"]
+asv_counts<-asv_counts[rowSums(asv_counts) > 0, ]
+# Shannon Diversity
+shannon <- diversity(asv_counts, index = "shannon")
+
+# Evenness (Shannon / log(S))
+evenness <- shannon / log(specnumber(asv_counts))  # S = richness
+
+# Richness (Observed ASVs)
+richness <- specnumber(asv_counts)
+
+# Combine into a dataframe
+alpha_df_arranged <- data.frame(
+  Sample = rownames(merged_asv_table_arranged),
+  Experiment = merged_asv_table_arranged$experiment,
+  Shannon = shannon,
+  Evenness = evenness,
+  Richness = richness
+)
+```
+
+```{r}
+# Convert to long format
+alpha_long_arranged <- alpha_df_arranged %>%
+  pivot_longer(cols = c(Shannon, Evenness, Richness), 
+               names_to = "Metric", 
+               values_to = "Value")
+
+# Plot
+ggplot(alpha_long_arranged, aes(x = Experiment, y = Value, fill = Experiment)) +
+  geom_boxplot() +
+  facet_wrap(~ Metric, scales = "free_y") +
+  scale_fill_manual(values = c(
+    "max_mbqc_arranged_P1" = "#1D9AA1", 
+    "max_mbqc_arranged_P6" = "#124163"  
+  )) +
+  labs(title = "Alpha Diversity Metrics", x = "", y = "Value") 
+
+metrics <- c("Shannon", "Evenness", "Richness")
+
+results_arranged <- lapply(metrics, function(metric) {
+  formula <- as.formula(paste(metric, "~ Experiment"))
+  t.test(formula, data = alpha_df_arranged)
+})
+
+names(results) <- metrics
+results$Shannon
+results$Evenness
+results$Richness
+```
+
+# Comparison between tables
+
+## P1
+
+```{r}
+#Column for experiment 
+df_k1_mbqc$experiment<-"mbqc_or"
+
+df_k1_mbqc_arranged$experiment<-"arranged"
+
+df_k1_mbqc_arranged$iteration <- seq_len(nrow(df_k1_mbqc_arranged))
+df_k1_mbqc$iteration <- seq_len(nrow(df_k1_mbqc))
+#merbing by row
+
+p1_df<-bind_rows(df_k1_mbqc, df_k1_mbqc_arranged)%>%
+  mutate(experiment=as.factor(experiment))
+summary(p1_df)
+
+```
+
+```{r}
+
+plot_comparative_K(p1_df,df_k1_mbqc_unfilt$K, df_k1_mbqc_filt$K)
+plot_comparative_BC(p1_df,df_k1_mbqc_unfilt$BC, df_k1_mbqc_filt$BC)
+plot_comparative_J(p1_df,df_k1_mbqc_unfilt$J, df_k1_mbqc_filt$J)
+```
+
+```{r}
+ggplot(p1_df, aes(x = iteration, y = added_asv, fill=experiment)) +
+  geom_tile() +
+   scale_fill_manual(values = c(
+    "mbqc_or" = "#1D9AA1",
+    "arranged" = "#6EC5B8"
+  ))  +
+  labs(
+    x = "Added ASVs",
+    y = "Iteration",
+    fill = "ASV Table"
+  ) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+
+df_k1_mbqc$added_asv; df_k1_mbqc_arranged$added_asv
+```
+
+## P2
+
+its going to be the same results
+
+## P3
+
+```{r}
+#Column for experiment 
+df_k3_mbqc$experiment<-"mbqc_or"
+
+df_k3_mbqc_arranged$experiment<-"arranged"
+
+df_k3_mbqc$iteration <- seq_len(nrow(df_k3_mbqc))
+df_k3_mbqc_arranged$iteration <- seq_len(nrow(df_k3_mbqc_arranged))
+#merbing by row
+
+p3_df<-bind_rows(df_k3_mbqc, df_k3_mbqc_arranged)%>%
+  mutate(experiment=as.factor(experiment))
+summary(p3_df)
+```
+
+```{r}
+plot_comparative_K(p3_df,df_k3_mbqc_arranged_unfilt$K_values, df_k3_mbqc_arranged_unfilt$K)
+plot_comparative_BC(p3_df,df_k3_mbqc_arranged_unfilt$BC_values, df_k3_mbqc_arranged_unfilt$BC)
+plot_comparative_J(p3_df,df_k3_mbqc_arranged_unfilt$J_values, df_k3_mbqc_arranged_unfilt$J)
+
+
+
+ggplot(p3_df, aes(x=iteration, y=K_values, fill=experiment, shape=experiment))+
+    geom_point(aes(colour=experiment), size=3)+geom_line(aes(group=experiment, colour=experiment), linewidth=1.25)+
+    scale_colour_manual(values = c(
+      "mbqc_or" = "#1D9AA1",
+      "arranged" = "#6EC5B8"
+    ))+
+    geom_hline(yintercept=df_k3_mbqc_arranged_unfilt$K_values, linewidth=1, linetype=2, colour="#3E8853")+theme(
+      axis.text.x = element_text(angle = 90, hjust = 1, vjust = 0.5, size = 11), 
+      axis.text.y = element_text(size = 12), 
+      axis.title = element_text(size = 14)
+    )+facet_wrap(~experiment)
+```
+
+```{r}
+ggplot(p3_df, aes(x = added_asv, y = iteration, fill=experiment)) +
+  geom_tile() +
+   scale_fill_manual(values = c(
+    "mbqc_or" = "#1D9AA1",
+    "arranged" = "#6EC5B8"
+  ))  +
+  labs(
+    x = "Added ASVs",
+    y = "Iteration",
+    fill = "ASV Table"
+  ) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+
+```
+
+## P5
+
+```{r}
+
+#Column for experiment 
+df_k5_mbqc$experiment<-"mbqc_or"
+
+df_k5_mbqc_arranged$experiment<-"arranged"
+
+df_k5_mbqc_arranged$iteration <- seq_len(nrow(df_k5_mbqc_arranged))
+df_k5_mbqc$iteration <- seq_len(nrow(df_k5_mbqc))
+#merbing by row
+
+p5_df<-bind_rows(df_k5_mbqc_arranged, df_k5_mbqc)%>%
+  mutate(experiment=as.factor(experiment))
+summary(p5_df)
+```
+
+```{r}
+plot_comparative_K(p5_df,unfiltered_valuesK5_mbqc$K_values, filtered_valuesK5_mbqc$K_values)
+plot_comparative_BC(p5_df,unfiltered_valuesK5_mbqc$BC_values, filtered_valuesK5_mbqc$BC_values)
+plot_comparative_J(p5_df,unfiltered_valuesK5_mbqc$J_values, filtered_valuesK5_mbqc$J_values)
+
+
+```
+
+## P6
+
+```{r}
+#Column for experiment 
+df_BETA05_mbqc$experiment<-"mbqc_or"
+
+df_BETA05_mbqc_arranged$experiment<-"arranged"
+
+df_BETA05_mbqc$iteration <- seq_len(nrow(df_BETA05_mbqc))
+df_BETA05_mbqc_arranged$iteration <- seq_len(nrow(df_BETA05_mbqc_arranged))
+#merbing by row
+
+p6_df<-bind_rows(df_BETA05_mbqc, df_BETA05_mbqc_arranged)%>%
+  mutate(experiment=as.factor(experiment), K_values=k_value)
+summary(p6_df)
+
+plot_comparative_K(p6_df,mbqc_arranged_weighted_unfiltered, mbqc_arranged_weighted_filtered)
+
+```
+
+# Effect on Diversity Metrics
+
+```{r}
+#defining the list of datasets
+datasets <- list(
+  mbqc_original_P1 = K1_mbqc,
+  mbqc_arranged_P1 = K1_mbqc_arranged,
+  mbqc_original_P2 = K2_mbqc,
+  mbqc_arrangedl_P2 = K2_mbqc,
+  mbqc_original_P3 = K3_mbqc,
+  mbqc_arranged_P3 = K3_mbqc_arranged,
+  mbqc_original_P4 = K4_mbqc,
+  mbqc_arranged_P4 = K4_mbqc_arranged,
+  mbqc_original_P5 = mbqc_5,
+  mbqc_arranged_P5 = mbqc_5_arranged,
+  mbqc_original_P6 = mbqc_6,
+  mbqc_arranged_P6 = mbqc_arranged_6
+)
+#Find all ASVs across all datasets
+all_asvs <- Reduce(union, lapply(datasets, colnames))
+
+standardised_datasets <- lapply(names(datasets), function(name) {
+  df <- datasets[[name]]
+  missing <- setdiff(all_asvs, colnames(df))
+  df[, missing] <- 0
+  df <- df[, all_asvs]
+  df$experiment <- name
+  df
+})
+
+#Merge all
+merged_all <- bind_rows(standardised_datasets)
+#Remove rows with zero counts across all ASVs
+asv_counts <- merged_all[, !colnames(merged_all) %in% "experiment"]
+asv_counts <- asv_counts[rowSums(asv_counts) > 0, ]
+
+```
+
+```{r}
+max_values<-rowbind(mbqc_)
+```
+
+
+## Alpha Diversity
+```{r}
+#Diversity metrics
+shannon <- diversity(asv_counts, index = "shannon")
+evenness <- shannon / log(specnumber(asv_counts))
+richness <- specnumber(asv_counts)
+
+
+alpha_df_across <- data.frame(
+  Sample = rownames(asv_counts),
+  Experiment = merged_all[rowSums(merged_all[, !colnames(merged_all) %in% "experiment"]) > 0, ]$experiment,
+  Shannon = shannon,
+  Evenness = evenness,
+  Richness = richness
+)
+
+
+alpha_long_across <- alpha_df_across %>%
+  pivot_longer(cols = c(Shannon, Evenness, Richness), names_to = "Metric", values_to = "Value")
+
+#plot
+alpha_diversity_plot<-ggplot(alpha_long_across, aes(x = Experiment, y = Value, fill = Experiment)) +
+  geom_boxplot() +
+  facet_wrap(~ Metric, scales = "free_y") +
+  labs(title = "Alpha Diversity Metrics", x = "", y = "Value") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+alpha_diversity_plot
+```
+
+
+
+```{r}
+
+alpha_long_across <- alpha_long_across %>%
+  mutate(
+    P = gsub(".*_P([0-9]+).*", "P\\1", Experiment),
+    P = factor(P, levels = paste0("P", 1:6)),
+    Type = ifelse(grepl("arranged", Experiment), "Ordered", "Non-Ordered")
+  )
+
+colour_scheme <- c(
+  "Non-Ordered" = "#124163", 
+  "Ordered" = "#1D9AA1"
+)
+
+alpha_diversity_plot <- ggplot(alpha_long_across, aes(x = Type, y = Value, fill = Type)) +
+  geom_boxplot(width = 0.6, outlier.size = 0.8) +
+  facet_grid(Metric ~ P, scales = "free_y") +
+  scale_fill_manual(values = colour_scheme) +
+  labs(title = "Alpha Diversity Metrics by Pipeline", x = "", y = "Value") +
+  theme(
+    axis.text.x = element_text(angle = 90, hjust = 0.5),
+    legend.position = "top",
+    legend.title = element_blank(),
+    strip.text = element_text(size = 12)
+  )
+
+alpha_diversity_plot
+
+
+```
+
+
+
+```{r}
+library(vegan)
+library(tidyverse)
+
+# Define datasets
+datasets <- list(
+  unfiltered = mbqc,
+  filtered_I = mbqc_filter_I,
+  filtered_II = mbqc_filter_II,
+  mbqc_original_P1 = K1_mbqc,
+  mbqc_arranged_P1 = K1_mbqc_arranged,
+  mbqc_original_P2 = K2_mbqc,
+  mbqc_original_P3 = K3_mbqc,
+  mbqc_arranged_P3 = K3_mbqc_arranged,
+  mbqc_original_P4 = K4_mbqc,
+  mbqc_arranged_P4 = K4_mbqc_arranged,
+  mbqc_original_P5 = mbqc_5,
+  mbqc_arranged_P5 = mbqc_5_arranged,
+  mbqc_original_P6 = mbqc_6,
+  mbqc_arranged_P6 = mbqc_arranged_6
+)
+
+# Get all ASVs
+all_asvs <- Reduce(union, lapply(datasets, colnames))
+
+# Standardise all datasets
+standardised_datasets <- lapply(names(datasets), function(name) {
+  df <- datasets[[name]]
+  missing <- setdiff(all_asvs, colnames(df))
+  df[, missing] <- 0
+  df <- df[, all_asvs]
+  df$experiment <- name
+  df
+})
+
+# Merge
+merged_all <- bind_rows(standardised_datasets)
+
+# Remove zero-count samples
+asv_counts <- merged_all[, !colnames(merged_all) %in% "experiment"]
+asv_counts <- asv_counts[rowSums(asv_counts) > 0, ]
+
+# Diversity metrics
+shannon <- diversity(asv_counts, index = "shannon")
+evenness <- shannon / log(specnumber(asv_counts))
+richness <- specnumber(asv_counts)
+
+# Combine with metadata
+alpha_df_across <- data.frame(
+  Sample = rownames(asv_counts),
+  Experiment = merged_all[rowSums(merged_all[, !colnames(merged_all) %in% "experiment"]) > 0, ]$experiment,
+  Shannon = shannon,
+  Evenness = evenness,
+  Richness = richness
+)
+
+# Convert to long format
+alpha_long_across <- alpha_df_across %>%
+  pivot_longer(cols = c(Shannon, Evenness, Richness), names_to = "Metric", values_to = "Value") %>%
+  mutate(
+    P = case_when(
+      grepl("^unfiltered$|^filtered_", Experiment) ~ "Filt_Functions",
+      grepl("_P([0-9]+)", Experiment) ~ gsub(".*_P([0-9]+).*", "P\\1", Experiment),
+      TRUE ~ NA_character_
+    ),
+    P = factor(P, levels = c("Filt_Functions", paste0("P", 1:6))),
+    Type = case_when(
+      Experiment == "unfiltered" ~ "Unfiltered",
+      Experiment == "filtered_I" ~ "Filtered I",
+      Experiment == "filtered_II" ~ "Filtered II",
+      grepl("arranged", Experiment) ~ "Ordered",
+      TRUE ~ "Non-Ordered"
+    ),
+    Type = factor(Type, levels = c("Unfiltered", "Filtered I", "Filtered II", "Non-Ordered", "Ordered"))
+  )
+
+
+
+# Custom colour palette
+colour_scheme <- c(
+  "Unfiltered" = "#3E8853",
+  "Filtered I" = "#124163",
+  "Filtered II" = "#1D9AA1"
+)
+
+alpha
+# Plot
+alpha_diversity_plot <- ggplot(alpha_long_across, aes(x = Type, y = Value, fill = Type)) +
+  geom_boxplot(width = 0.6, outlier.size = 0.8) +
+  facet_grid(Metric ~ P, scales = "free_y") +
+  scale_fill_manual(values = colour_scheme) +
+  labs(title = "Alpha Diversity Metrics by Pipeline", x = "", y = "Value") +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "top",
+    legend.title = element_blank(),
+    strip.text = element_text(size = 12)
+  )
+
+alpha_diversity_plot
+
+
+head(alpha_long_across)
+
+controls<-alpha_long_across[alpha_long_across$P=="Filt_Functions",]
+alpha_diversity_plot <- ggplot(controls, aes(x = Type, y = Value, fill = Type)) +
+  geom_boxplot(width = 0.6, outlier.size = 0.8) +
+  facet_grid(Metric ~ P, scales = "free_y") +
+  scale_fill_manual(values = colour_scheme) +
+  labs(title = "Alpha Diversity Metrics by Pipeline", x = "", y = "Value") +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "top",
+    legend.title = element_blank(),
+    strip.text = element_text(size = 12)
+  )
+
+alpha_diversity_plot
+
+```
+
+
+
+
+
+
+
+```{r}
+# Beta diversity: Bray-Curtis
+bray_dist <- vegdist(asv_counts, method = "bray")
+pcoa_res <- cmdscale(bray_dist, eig = TRUE, k = 2)
+
+pcoa_df <- data.frame(
+  Sample = rownames(asv_counts),
+  Axis1 = pcoa_res$points[,1],
+  Axis2 = pcoa_res$points[,2],
+  Experiment = controls$Experiment
+)
+
+# PCoA plot
+ggplot(pcoa_df, aes(x = Axis1, y = Axis2, colour = Experiment, shape = Experiment)) +
+  geom_jitter(width = 0.01, height = 0.01, size = 1.5) +
+  labs(x = "PCoA 1", y = "PCoA 2", title = "Bray-Curtis PCoA") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+
+
+```
+
+```{r}
+results <- lapply(paste0("P", 1:6), function(p) {
+  alpha_sub <- alpha_df_across %>% filter(grepl(p, Experiment))
+  asv_sub <- asv_counts[rownames(asv_counts) %in% alpha_sub$Sample, ]
+  asv_sub <- asv_sub[match(alpha_sub$Sample, rownames(asv_sub)), ]
+  
+  if (nrow(asv_sub) > 2 && length(unique(alpha_sub$Experiment)) > 1) {
+    bray <- vegdist(asv_sub, method = "bray")
+    adonis2(bray ~ Experiment, data = alpha_sub, permutations = 99)
+  } else {
+    paste("Too few samples for", p)
+  }
+})
+
+names(results) <- paste0("P", 1:6)
+results
+
+```
+
+```{r}
+# Prepare filtered and unfiltered data
+extra_tables <- list(
+  Filtered = mbqc_filter_I,
+  Unfiltered = mbqc
+)
+
+for (name in names(extra_tables)) {
+  df <- extra_tables[[name]]
+  missing <- setdiff(colnames(asv_counts), colnames(df))
+  df[, missing] <- 0
+  df <- df[, colnames(asv_counts)]
+  df$Experiment <- name
+  extra_tables[[name]] <- df
+}
+
+merged_extra <- bind_rows(extra_tables)
+extra_counts <- merged_extra[, !colnames(merged_extra) %in% "Experiment"]
+extra_counts <- extra_counts[rowSums(extra_counts) > 0, ]
+
+#PERMANOVA
+metadata_extra <- data.frame(
+  Sample = rownames(extra_counts),
+  Experiment = merged_extra[rowSums(merged_extra[, !colnames(merged_extra) %in% "Experiment"]) > 0, ]$Experiment
+)
+
+# Adonis2
+if (length(unique(metadata_extra$Experiment)) > 1) {
+  bray_extra <- vegdist(extra_counts, method = "bray")
+  adonis_extra <- adonis2(bray_extra ~ Experiment, data = metadata_extra, permutations = 99)
+} else {
+  adonis_extra <- "Too few groups to compare"
+}
+
+# Attach to your existing results
+results$Filtered_vs_Unfiltered <- adonis_extra
+results
+```
+
